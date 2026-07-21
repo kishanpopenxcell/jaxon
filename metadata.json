@@ -1,0 +1,6 @@
+{
+  "name": "Jaxon",
+  "description": "Futuristic minimal offline AI-inspired voice assistant using native Android Speech Recognition and TTS.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
