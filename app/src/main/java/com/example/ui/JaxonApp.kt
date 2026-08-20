@@ -1,7 +1,16 @@
 package com.example.ui
 
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.History
@@ -85,10 +94,19 @@ fun JaxonApp(
                                 }
                             },
                             icon = {
+                                val bounceOffset by animateDpAsState(
+                                    targetValue = if (selected) (-3).dp else 0.dp,
+                                    animationSpec = spring(
+                                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                                        stiffness = Spring.StiffnessMedium
+                                    ),
+                                    label = "nav_icon_bounce"
+                                )
                                 Icon(
                                     imageVector = item.icon,
                                     contentDescription = item.label,
-                                    tint = if (selected) Color.Black else Color.White.copy(alpha = 0.6f)
+                                    tint = if (selected) Color.Black else Color.White.copy(alpha = 0.6f),
+                                    modifier = Modifier.offset(y = bounceOffset)
                                 )
                             },
                             label = {
@@ -117,7 +135,19 @@ fun JaxonApp(
             NavHost(
                 navController = navController,
                 startDestination = "splash",
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier.fillMaxSize(),
+                enterTransition = {
+                    fadeIn(tween(180)) + slideInVertically(tween(180)) { it / 40 }
+                },
+                exitTransition = {
+                    fadeOut(tween(180))
+                },
+                popEnterTransition = {
+                    fadeIn(tween(180)) + slideInVertically(tween(180)) { -it / 40 }
+                },
+                popExitTransition = {
+                    fadeOut(tween(180))
+                }
             ) {
                 composable("splash") {
                     SplashScreen(navController = navController, viewModel = viewModel)

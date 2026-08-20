@@ -4,7 +4,6 @@ import androidx.compose.animation.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -12,12 +11,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowForward
-import androidx.compose.material.icons.filled.ContactPage
-import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.NetworkWifi3Bar
-import androidx.compose.material.icons.filled.PrivacyTip
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
@@ -26,15 +19,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import com.example.ui.components.JaxonFace
+import com.example.ui.components.JaxonFaceState
 import com.example.ui.theme.GlowCyan
-import com.example.ui.theme.ElectricPurple
 import com.example.ui.theme.DeepGray
 import com.example.ui.theme.SpaceBlack
 import com.example.ui.viewmodel.JaxonViewModel
@@ -53,21 +46,15 @@ fun OnboardingScreen(
     val pages = listOf(
         OnboardingPageData(
             title = "Absolute Privacy",
-            description = "Jaxon handles 100% of speech recognition, parsing, and execution locally. No cloud servers, no analytics, and zero external tracking. Your data is truly yours.",
-            icon = Icons.Default.PrivacyTip,
-            accentColor = GlowCyan
+            description = "Jaxon handles 100% of speech recognition, parsing, and execution locally. No cloud servers, no analytics, and zero external tracking. Your data is truly yours."
         ),
         OnboardingPageData(
             title = "Native Android Power",
-            description = "Control your device with natural offline speech. Open installed apps, check available storage, call contacts, set alarms, toggle your flashlight, and manage volume directly.",
-            icon = Icons.Default.Mic,
-            accentColor = ElectricPurple
+            description = "Control your device with natural offline speech. Open installed apps, check available storage, call contacts, set alarms, toggle your flashlight, and manage volume directly."
         ),
         OnboardingPageData(
             title = "Custom Automations",
-            description = "Build custom multi-step routines. Say 'Movie Time' to launch streaming apps, connect bluetooth, and turn down the volume instantly. Automate anything offline.",
-            icon = Icons.Default.Tune,
-            accentColor = GlowCyan
+            description = "Build custom multi-step routines. Say 'Movie Time' to launch streaming apps, connect bluetooth, and turn down the volume instantly. Automate anything offline."
         )
     )
 
@@ -105,21 +92,11 @@ fun OnboardingScreen(
                 verticalArrangement = Arrangement.Center,
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Feature Icon
-                Box(
-                    modifier = Modifier
-                        .size(100.dp)
-                        .background(page.accentColor.copy(alpha = 0.08f), CircleShape)
-                        .border(1.dp, page.accentColor.copy(alpha = 0.2f), CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = page.icon,
-                        contentDescription = null,
-                        tint = page.accentColor,
-                        modifier = Modifier.size(48.dp)
-                    )
-                }
+                // Same finalized wave face used everywhere else in the app, idle-breathing
+                JaxonFace(
+                    state = JaxonFaceState.IDLE,
+                    size = 100.dp
+                )
 
                 Spacer(modifier = Modifier.height(32.dp))
 
@@ -223,9 +200,7 @@ fun OnboardingScreen(
 
 private data class OnboardingPageData(
     val title: String,
-    val description: String,
-    val icon: ImageVector,
-    val accentColor: Color
+    val description: String
 )
 
 private val SoftTextGray = Color(0xFFA0A0AB)

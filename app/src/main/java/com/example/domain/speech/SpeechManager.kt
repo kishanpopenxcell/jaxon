@@ -6,8 +6,11 @@ import android.os.Bundle
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.util.Locale
 
@@ -30,8 +33,10 @@ class SpeechManager(private val context: Context) {
     private val _partialText = MutableStateFlow("")
     val partialText: StateFlow<String> = _partialText.asStateFlow()
 
-    private val _finalText = MutableStateFlow("")
-    val finalText: StateFlow<String> = _finalText.asStateFlow()
+    // SharedFlow (not StateFlow) so repeating the same phrase in consecutive sessions still
+    // emits - a StateFlow would conflate identical consecutive values and silently drop them.
+    private val _finalText = MutableSharedFlow<String>(replay = 0, extraBufferCapacity = 8)
+    val finalText: SharedFlow<String> = _finalText.asSharedFlow()
 
     private val _rmsDb = MutableStateFlow(0.0f)
     val rmsDb: StateFlow<Float> = _rmsDb.asStateFlow()
@@ -83,7 +88,7 @@ class SpeechManager(private val context: Context) {
             val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
             if (!matches.isNullOrEmpty()) {
                 val bestMatch = matches[0]
-                _finalText.value = bestMatch
+                _finalText.tryEmit(bestMatch)
                 _partialText.value = bestMatch
             } else {
                 _state.value = SpeechState.ERROR
@@ -123,7 +128,6 @@ class SpeechManager(private val context: Context) {
         }
 
         _partialText.value = ""
-        _finalText.value = ""
         _errorMessage.value = null
         _rmsDb.value = 0.0f
 

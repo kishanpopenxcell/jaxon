@@ -2,7 +2,6 @@ package com.example.ui.screens
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -11,21 +10,15 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MicNone
-import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
@@ -35,6 +28,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.domain.speech.SpeechState
+import com.example.ui.components.JaxonFace
 import com.example.ui.theme.GlowCyan
 import com.example.ui.theme.ElectricPurple
 import com.example.ui.theme.DeepGray
@@ -44,7 +38,6 @@ import com.example.ui.theme.WarningRed
 import androidx.compose.foundation.BorderStroke
 import java.util.Locale
 import com.example.ui.viewmodel.JaxonViewModel
-import kotlin.math.sin
 
 @Composable
 fun VoiceAssistantOverlay(
@@ -60,21 +53,6 @@ fun VoiceAssistantOverlay(
     val rmsDb by viewModel.rmsDb.collectAsState()
     val errorText by viewModel.speechError.collectAsState()
     val isExecuting by viewModel.isExecutingAction.collectAsState()
-
-    // Breathing pulse for the glowing AI core
-    val infiniteTransition = rememberInfiniteTransition(label = "pulse")
-    val pulseScale by infiniteTransition.animateFloat(
-        initialValue = 0.95f,
-        targetValue = 1.12f,
-        animationSpec = infiniteSpec(1500),
-        label = "pulse_scale"
-    )
-    val coreGlowAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.2f,
-        targetValue = 0.5f,
-        animationSpec = infiniteSpec(1500),
-        label = "core_glow"
-    )
 
     Box(
         modifier = modifier
@@ -201,94 +179,17 @@ fun VoiceAssistantOverlay(
                 )
             }
 
-            // Glowing AI orb or Waveform
+            // Animated Jaxon face - same live state system as Home
             Box(
-                modifier = Modifier
-                    .size(130.dp),
+                modifier = Modifier.size(130.dp),
                 contentAlignment = Alignment.Center
             ) {
-                if (speechState == SpeechState.LISTENING || speechState == SpeechState.READY) {
-                    // Render Concentric Pulsating Rings
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .blur(10.dp)
-                            .background(
-                                Brush.radialGradient(
-                                    colors = listOf(
-                                        GlowCyan.copy(alpha = coreGlowAlpha),
-                                        ElectricPurple.copy(alpha = 0.08f),
-                                        Color.Transparent
-                                    )
-                                )
-                            )
-                    )
-
-                    // Waveform Canvas Visualizer (No external library, custom drawn with physical DB input!)
-                    Canvas(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(8.dp)
-                    ) {
-                        val numBars = 10
-                        val spacing = 6.dp.toPx()
-                        val barWidth = 6.dp.toPx()
-                        val containerWidth = size.width
-                        val containerHeight = size.height
-                        val midY = containerHeight / 2f
-
-                        // Calculate total width of all bars and spacing
-                        val totalWidth = (numBars * barWidth) + ((numBars - 1) * spacing)
-                        val startX = (containerWidth - totalWidth) / 2f
-
-                        // Map rmsDb to a scale height multiplier
-                        val baseHeightMultiplier = 16.dp.toPx()
-                        val micHeightMultiplier = rmsDb * 28.dp.toPx()
-                        val totalHeightScale = baseHeightMultiplier + micHeightMultiplier
-
-                        for (i in 0 until numBars) {
-                            // Phase shift to create a beautiful sine propagation across bars
-                            val phase = (i.toFloat() / numBars) * Math.PI * 2.0
-                            val timeFactor = (System.currentTimeMillis() % 1000) / 1000f * Math.PI * 2.0
-                            val waveVal = sin(phase + timeFactor).toFloat()
-
-                            // Height of the bar is modulated by wave value and mic volume
-                            val height = (0.2f + 0.8f * waveVal.coerceIn(0f, 1f)) * totalHeightScale
-                            val barX = startX + i * (barWidth + spacing)
-
-                            drawRoundRect(
-                                brush = Brush.verticalGradient(
-                                    colors = listOf(GlowCyan, ElectricPurple)
-                                ),
-                                topLeft = Offset(barX, midY - (height / 2f)),
-                                size = Size(barWidth, height),
-                                cornerRadius = CornerRadius(barWidth / 2, barWidth / 2)
-                            )
-                        }
-                    }
-                } else {
-                    // Pulsating Glowing Core (Processing, Idle or Result states)
-                    Box(
-                        modifier = Modifier
-                            .size(80.dp * pulseScale)
-                            .clip(CircleShape)
-                            .background(
-                                Brush.linearGradient(
-                                    colors = listOf(GlowCyan, ElectricPurple)
-                                )
-                            )
-                            .border(1.dp, Color.White.copy(alpha = 0.25f), CircleShape)
-                    ) {
-                        Icon(
-                            imageVector = if (isExecuting) Icons.Default.VolumeUp else Icons.Default.Mic,
-                            contentDescription = "Active Mic",
-                            tint = Color.Black,
-                            modifier = Modifier
-                                .size(28.dp)
-                                .align(Alignment.Center)
-                        )
-                    }
-                }
+                val faceState by viewModel.faceState.collectAsState()
+                JaxonFace(
+                    state = faceState,
+                    rmsDb = rmsDb,
+                    size = 130.dp
+                )
             }
 
             // Real-time voice transcript in bold style
@@ -420,13 +321,4 @@ fun VoiceAssistantOverlay(
             }
         }
     }
-}
-
-
-@Composable
-private fun infiniteSpec(duration: Int): InfiniteRepeatableSpec<Float> {
-    return infiniteRepeatable(
-        animation = tween(duration, easing = LinearEasing),
-        repeatMode = RepeatMode.Reverse
-    )
 }

@@ -1,5 +1,6 @@
 package com.example.domain.executor
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.app.SearchManager
 import android.content.Context
@@ -17,6 +18,7 @@ import android.provider.AlarmClock
 import android.provider.ContactsContract
 import android.provider.Settings
 import android.view.KeyEvent
+import androidx.core.content.ContextCompat
 import com.example.domain.parser.ParsedIntent
 import com.example.domain.parser.IntentType
 import java.text.SimpleDateFormat
@@ -26,6 +28,10 @@ import java.util.Locale
 
 class ActionExecutor(private val context: Context) {
 
+    private fun hasPermission(permission: String): Boolean {
+        return ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
+    }
+
     /**
      * Executes the parsed voice command and returns a natural descriptive result string.
      */
@@ -33,12 +39,24 @@ class ActionExecutor(private val context: Context) {
         return try {
             when (parsed.intentType) {
                 IntentType.OPEN_APP -> openAppAction(parsed.parameters["app"])
-                IntentType.CALL_CONTACT -> callContactAction(parsed.parameters["contact"] ?: parsed.parameters["number"])
+                IntentType.CALL_CONTACT -> {
+                    if (!hasPermission(Manifest.permission.READ_CONTACTS)) {
+                        "I need Contacts permission to call by name. Please grant it from the Permissions screen in Settings."
+                    } else {
+                        callContactAction(parsed.parameters["contact"] ?: parsed.parameters["number"])
+                    }
+                }
                 IntentType.SHOW_TIME -> showTimeAction()
                 IntentType.BATTERY_INFO -> batteryInfoAction()
                 IntentType.DEVICE_STORAGE -> deviceStorageAction()
                 IntentType.OPEN_SETTINGS -> openSettingsAction(parsed.parameters["setting"])
-                IntentType.FLASHLIGHT_TOGGLE -> flashlightToggleAction(parsed.parameters["state"])
+                IntentType.FLASHLIGHT_TOGGLE -> {
+                    if (!hasPermission(Manifest.permission.CAMERA)) {
+                        "I need Camera permission to control the flashlight. Please grant it from the Permissions screen in Settings."
+                    } else {
+                        flashlightToggleAction(parsed.parameters["state"])
+                    }
+                }
                 IntentType.VOLUME_CONTROL -> volumeControlAction(parsed.parameters["action"], parsed.parameters["state"])
                 IntentType.SET_ALARM -> setAlarmAction(parsed.parameters["time"], parsed.parameters["hour"], parsed.parameters["minute"], parsed.parameters["ampm"])
                 IntentType.SET_TIMER -> setTimerAction(parsed.parameters["duration"], parsed.parameters["unit"])

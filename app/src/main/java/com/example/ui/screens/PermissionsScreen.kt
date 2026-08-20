@@ -10,12 +10,21 @@ import android.os.PowerManager
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -35,6 +44,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.navigation.NavController
 import com.example.domain.permissions.PermissionItem
@@ -59,10 +69,26 @@ fun PermissionsScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val activity = context as? Activity
     var permissionList by remember { mutableStateOf(PermissionProvider.getPermissions()) }
 
     // Map to track grant states locally
     val permissionStates = remember { mutableStateMapOf<String, Boolean>() }
+
+    // Tracks permissions that were denied at least once, so we can tell a fresh
+    // "not asked yet" state apart from a permanent "Don't ask again" denial.
+    val deniedOnceIds = remember { mutableStateMapOf<String, Boolean>() }
+
+    fun isPermanentlyDenied(item: PermissionItem): Boolean {
+        if (item.type != PermissionType.RUNTIME || item.permissionString == null) return false
+        val granted = permissionStates[item.id] ?: false
+        if (granted) return false
+        if (deniedOnceIds[item.id] != true) return false
+        val shouldShowRationale = activity?.let {
+            ActivityCompat.shouldShowRequestPermissionRationale(it, item.permissionString)
+        } ?: false
+        return !shouldShowRationale
+    }
 
     // Re-check statuses
     fun updateStatuses() {
@@ -98,12 +124,27 @@ fun PermissionsScreen(
     ) { isGranted ->
         activePermissionItem?.let { item ->
             permissionStates[item.id] = isGranted
+            if (!isGranted) {
+                deniedOnceIds[item.id] = true
+            }
         }
         updateStatuses()
     }
 
+    fun openAppSettings() {
+        val intent = Intent(
+            Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+            Uri.parse("package:${context.packageName}")
+        )
+        context.startActivity(intent)
+    }
+
     // Request permissions router
     fun requestPermission(item: PermissionItem) {
+        if (isPermanentlyDenied(item)) {
+            openAppSettings()
+            return
+        }
         activePermissionItem = item
         when (item.type) {
             PermissionType.RUNTIME -> {
@@ -163,6 +204,11 @@ fun PermissionsScreen(
                         }
                     }
 
+                    val gradientSweep by animateFloatAsState(
+                        targetValue = if (micGranted) 1f else 0f,
+                        animationSpec = tween(350),
+                        label = "finish_button_gradient"
+                    )
                     Button(
                         onClick = {
                             // Completes onboarding and opens Home Screen
@@ -172,13 +218,22 @@ fun PermissionsScreen(
                             }
                         },
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (micGranted) GlowCyan else Color.White.copy(alpha = 0.12f)
+                            containerColor = Color.White.copy(alpha = 0.12f)
                         ),
                         enabled = micGranted,
                         shape = RoundedCornerShape(16.dp),
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(56.dp)
+                            .background(
+                                brush = Brush.linearGradient(
+                                    colors = listOf(
+                                        GlowCyan.copy(alpha = gradientSweep),
+                                        ElectricPurple.copy(alpha = gradientSweep)
+                                    )
+                                ),
+                                shape = RoundedCornerShape(16.dp)
+                            )
                             .testTag("permissions_done_button")
                     ) {
                         Row(
@@ -265,18 +320,32 @@ fun PermissionsScreen(
                 }
             }
 
-            items(permissionList) { item ->
+            itemsIndexed(permissionList) { index, item ->
                 val granted = permissionStates[item.id] ?: false
+                val permanentlyDenied = isPermanentlyDenied(item)
 
+                var visible by remember(item.id) { mutableStateOf(false) }
+                LaunchedEffect(item.id) {
+                    kotlinx.coroutines.delay(index * 70L)
+                    visible = true
+                }
+
+                val borderColor by animateColorAsState(
+                    targetValue = if (granted) SuccessGreen.copy(alpha = 0.25f) else GlassBorder,
+                    animationSpec = tween(250),
+                    label = "permission_border"
+                )
+
+                AnimatedVisibility(
+                    visible = visible,
+                    enter = fadeIn(tween(400)) + slideInVertically(tween(400)) { it / 3 }
+                ) {
                 Card(
                     colors = CardDefaults.cardColors(
                         containerColor = if (granted) LightGlassGray else LightGlassGray.copy(alpha = 0.5f)
                     ),
                     shape = RoundedCornerShape(20.dp),
-                    border = BorderStroke(
-                        width = 1.dp,
-                        color = if (granted) SuccessGreen.copy(alpha = 0.25f) else GlassBorder
-                    ),
+                    border = BorderStroke(width = 1.dp, color = borderColor),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(
@@ -342,18 +411,33 @@ fun PermissionsScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
+                                val dotColor by animateColorAsState(
+                                    targetValue = if (granted) SuccessGreen else WarningRed,
+                                    animationSpec = tween(250),
+                                    label = "status_dot"
+                                )
                                 Box(
                                     modifier = Modifier
                                         .size(10.dp)
                                         .clip(CircleShape)
-                                        .background(if (granted) SuccessGreen else WarningRed)
+                                        .background(dotColor)
                                 )
-                                Text(
-                                    text = if (granted) "Active" else "Pending Grant",
-                                    color = if (granted) SuccessGreen else WarningRed,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
+                                AnimatedContent(
+                                    targetState = when {
+                                        granted -> "Active"
+                                        permanentlyDenied -> "Blocked"
+                                        else -> "Pending Grant"
+                                    },
+                                    transitionSpec = { fadeIn(tween(150)) togetherWith fadeOut(tween(150)) },
+                                    label = "status_text"
+                                ) { label ->
+                                    Text(
+                                        text = label,
+                                        color = if (granted) SuccessGreen else WarningRed,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
                             }
 
                             // Button
@@ -369,15 +453,26 @@ fun PermissionsScreen(
                                     .height(38.dp)
                                     .testTag("grant_button_${item.id}")
                             ) {
-                                Text(
-                                    text = if (granted) "Granted" else "Grant",
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (granted) SoftTextGray else Color.White
-                                )
+                                AnimatedContent(
+                                    targetState = when {
+                                        granted -> "Granted"
+                                        permanentlyDenied -> "Open Settings"
+                                        else -> "Grant"
+                                    },
+                                    transitionSpec = { fadeIn(tween(150)) togetherWith fadeOut(tween(150)) },
+                                    label = "grant_button_text"
+                                ) { label ->
+                                    Text(
+                                        text = label,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (granted) SoftTextGray else Color.White
+                                    )
+                                }
                             }
                         }
                     }
+                }
                 }
             }
         }

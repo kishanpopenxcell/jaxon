@@ -7,6 +7,8 @@ import android.util.Log
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
 import java.util.Locale
 
 class TextToSpeechManager(private val context: Context) : TextToSpeech.OnInitListener {
@@ -66,6 +68,11 @@ class TextToSpeechManager(private val context: Context) : TextToSpeech.OnInitLis
         currentRate = rate
         currentPitch = pitch
 
+        if (tts == null) {
+            isInitialized = false
+            tts = TextToSpeech(context, this)
+        }
+
         if (!isInitialized) {
             pendingText = text
             return
@@ -78,6 +85,18 @@ class TextToSpeechManager(private val context: Context) : TextToSpeech.OnInitLis
             tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, utteranceId)
         } catch (e: Exception) {
             Log.e("TTS", "Error during speak: ${e.localizedMessage}")
+        }
+    }
+
+    /**
+     * Speaks [text] and suspends until playback has finished (or [timeoutMs] elapses), so a
+     * caller can safely start microphone capture right after without hearing its own prompt.
+     */
+    suspend fun speakAndAwait(text: String, rate: Float = 1.0f, pitch: Float = 1.0f, timeoutMs: Long = 4000) {
+        speak(text, rate, pitch)
+        withTimeoutOrNull(timeoutMs) {
+            isSpeaking.first { it }
+            isSpeaking.first { !it }
         }
     }
 
@@ -95,6 +114,7 @@ class TextToSpeechManager(private val context: Context) : TextToSpeech.OnInitLis
             tts?.stop()
             tts?.shutdown()
             tts = null
+            isInitialized = false
         } catch (e: Exception) {
             // Safe ignore
         }

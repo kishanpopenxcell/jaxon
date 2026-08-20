@@ -1,10 +1,15 @@
 package com.example.ui.screens
 
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -20,17 +25,22 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import androidx.navigation.NavController
 import com.example.data.model.VoiceCommand
 import com.example.domain.speech.SpeechState
+import com.example.ui.components.JaxonFace
 import com.example.ui.theme.GlowCyan
 import com.example.ui.theme.ElectricPurple
 import com.example.ui.theme.DeepGray
@@ -55,17 +65,37 @@ fun HomeScreen(
     val isBgActive by viewModel.isBackgroundServiceEnabled.collectAsState()
     val speechState by viewModel.speechState.collectAsState()
 
-    // Breathing pulse for the glowing Home mic
-    val infiniteTransition = rememberInfiniteTransition(label = "pulse")
-    val micPulseScale by infiniteTransition.animateFloat(
-        initialValue = 1.0f,
-        targetValue = 1.08f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1200, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "mic_pulse"
-    )
+    val context = LocalContext.current
+    val micPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            viewModel.startListening()
+        }
+    }
+
+    fun startListeningWithPermissionCheck() {
+        val micGranted = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.RECORD_AUDIO
+        ) == PackageManager.PERMISSION_GRANTED
+
+        if (micGranted) {
+            viewModel.startListening()
+        } else {
+            micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
+
+    var backgroundModeBlockedMessage by remember { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(backgroundModeBlockedMessage) {
+        if (backgroundModeBlockedMessage) {
+            snackbarHostState.showSnackbar("Microphone permission is required to enable Background Mode.")
+            backgroundModeBlockedMessage = false
+        }
+    }
 
     val quickActions = listOf(
         QuickAction("Check Battery", Icons.Default.BatteryChargingFull, "check battery"),
@@ -76,8 +106,9 @@ fun HomeScreen(
         QuickAction("Mute Volume", Icons.Default.VolumeMute, "mute volume")
     )
 
+    Box(modifier = modifier.fillMaxSize()) {
     LazyColumn(
-        modifier = modifier
+        modifier = Modifier
             .fillMaxSize()
             .background(SpaceBlack)
             .padding(horizontal = 20.dp)
@@ -118,7 +149,15 @@ fun HomeScreen(
                     )
                 }
 
-                // Privacy Indicator tag
+                // Privacy Indicator tag - the status dot breathes slowly to read as a live
+                // signal rather than printed text.
+                val offlinePulse = rememberInfiniteTransition(label = "offline_pulse")
+                val offlineAlpha by offlinePulse.animateFloat(
+                    initialValue = 0.6f,
+                    targetValue = 1f,
+                    animationSpec = infiniteRepeatable(tween(2500, easing = LinearEasing), RepeatMode.Reverse),
+                    label = "offline_pulse_alpha"
+                )
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -127,64 +166,59 @@ fun HomeScreen(
                         .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(10.dp))
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                 ) {
-                    Icon(Icons.Default.VerifiedUser, contentDescription = null, tint = SuccessGreen, modifier = Modifier.size(14.dp))
-                    Text("OFFLINE", color = SuccessGreen, fontSize = 9.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                    Icon(
+                        Icons.Default.VerifiedUser,
+                        contentDescription = null,
+                        tint = SuccessGreen.copy(alpha = offlineAlpha),
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Text(
+                        "OFFLINE",
+                        color = SuccessGreen.copy(alpha = offlineAlpha),
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace
+                    )
                 }
             }
         }
 
-        // Animated Microcore trigger button
+        // Animated Jaxon face trigger
         item {
+            val faceState by viewModel.faceState.collectAsState()
+            val rmsDb by viewModel.rmsDb.collectAsState()
+
+            var isPressed by remember { mutableStateOf(false) }
+            val faceScale by animateFloatAsState(
+                targetValue = if (isPressed) 0.96f else 1f,
+                animationSpec = tween(80),
+                label = "face_tap_scale"
+            )
+
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(200.dp),
                 contentAlignment = Alignment.Center
             ) {
-                // Background radial glow
-                Box(
+                JaxonFace(
+                    state = faceState,
+                    rmsDb = rmsDb,
+                    size = 160.dp,
                     modifier = Modifier
-                        .size(170.dp)
-                        .background(
-                            Brush.radialGradient(
-                                colors = listOf(
-                                    GlowCyan.copy(alpha = 0.15f),
-                                    ElectricPurple.copy(alpha = 0.03f),
-                                    Color.Transparent
-                                )
+                        .graphicsLayer(scaleX = faceScale, scaleY = faceScale)
+                        .pointerInput(Unit) {
+                            detectTapGestures(
+                                onPress = {
+                                    isPressed = true
+                                    tryAwaitRelease()
+                                    isPressed = false
+                                },
+                                onTap = { startListeningWithPermissionCheck() }
                             )
-                        )
+                        }
+                        .testTag("home_microphone_button")
                 )
-
-                // Outer border circle
-                Box(
-                    modifier = Modifier
-                        .size(130.dp * micPulseScale)
-                        .border(1.dp, GlowCyan.copy(alpha = 0.25f), CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    // Actionable floating button core
-                    Box(
-                        modifier = Modifier
-                            .size(104.dp)
-                            .clip(CircleShape)
-                            .background(
-                                Brush.linearGradient(
-                                    colors = listOf(GlowCyan, ElectricPurple)
-                                )
-                            )
-                            .clickable { viewModel.startListening() }
-                            .testTag("home_microphone_button"),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Mic,
-                            contentDescription = "Trigger Listening Overlay",
-                            tint = Color.Black,
-                            modifier = Modifier.size(38.dp)
-                        )
-                    }
-                }
             }
         }
 
@@ -269,7 +303,11 @@ fun HomeScreen(
                             )
                             Spacer(Modifier.height(2.dp))
                             Text(
-                                text = if (isBgActive) "Service Active in Notification bar" else "Enable persistent listening service",
+                                text = if (isBgActive) {
+                                    "Listening for \"Hey Jaxon\" — uses more battery"
+                                } else {
+                                    "Hands-free \"Hey Jaxon\" — uses more battery"
+                                },
                                 color = SoftTextGray,
                                 fontSize = 11.sp,
                                 maxLines = 1,
@@ -280,7 +318,18 @@ fun HomeScreen(
 
                     Switch(
                         checked = isBgActive,
-                        onCheckedChange = { viewModel.toggleBackgroundService(it) },
+                        onCheckedChange = { enabled ->
+                            val micGranted = ContextCompat.checkSelfPermission(
+                                context,
+                                Manifest.permission.RECORD_AUDIO
+                            ) == PackageManager.PERMISSION_GRANTED
+
+                            if (enabled && !micGranted) {
+                                backgroundModeBlockedMessage = true
+                            } else {
+                                viewModel.toggleBackgroundService(enabled)
+                            }
+                        },
                         colors = SwitchDefaults.colors(
                             checkedThumbColor = GlowCyan,
                             checkedTrackColor = GlowCyan.copy(alpha = 0.3f),
@@ -325,44 +374,67 @@ fun HomeScreen(
                 }
 
                 if (history.isEmpty()) {
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = DeepGray.copy(alpha = 0.2f)),
-                        shape = RoundedCornerShape(16.dp),
-                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.03f)),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 8.dp)
+                    androidx.compose.animation.AnimatedVisibility(
+                        visible = true,
+                        enter = androidx.compose.animation.fadeIn(tween(400)) +
+                            androidx.compose.animation.scaleIn(tween(400), initialScale = 0.92f)
                     ) {
-                        Column(
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = DeepGray.copy(alpha = 0.2f)),
+                            shape = RoundedCornerShape(16.dp),
+                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.03f)),
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(24.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                                .padding(vertical = 8.dp)
                         ) {
-                            Icon(Icons.Default.MicNone, contentDescription = null, tint = SoftTextGray.copy(alpha = 0.5f), modifier = Modifier.size(32.dp))
-                            Text(
-                                text = "No recent voice queries",
-                                color = SoftTextGray,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Medium
-                            )
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(24.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(Icons.Default.MicNone, contentDescription = null, tint = SoftTextGray.copy(alpha = 0.5f), modifier = Modifier.size(32.dp))
+                                Text(
+                                    text = "No recent voice queries",
+                                    color = SoftTextGray,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
                         }
                     }
                 } else {
-                    // Show top 3 recent commands
+                    // Show top 3 recent commands - each row fades + slides up on entry so a
+                    // freshly completed command visibly announces itself in the list.
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         history.take(3).forEach { command ->
-                            CommandHistoryRow(
-                                command = command,
-                                onFavoriteToggle = { viewModel.toggleFavorite(command) },
-                                onDelete = { viewModel.deleteHistoryItem(command) }
-                            )
+                            key(command.id) {
+                                androidx.compose.animation.AnimatedVisibility(
+                                    visible = true,
+                                    enter = androidx.compose.animation.fadeIn(tween(350)) +
+                                        androidx.compose.animation.slideInVertically(tween(350)) { -it / 3 }
+                                ) {
+                                    CommandHistoryRow(
+                                        command = command,
+                                        onFavoriteToggle = { viewModel.toggleFavorite(command) },
+                                        onDelete = { viewModel.deleteHistoryItem(command) }
+                                    )
+                                }
+                            }
                         }
                     }
                 }
             }
         }
+    }
+
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(16.dp)
+        )
     }
 }
 
