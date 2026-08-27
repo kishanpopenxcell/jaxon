@@ -1,5 +1,7 @@
 package com.example.ui
 
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.spring
@@ -48,6 +50,7 @@ import com.example.ui.theme.GlowCyan
 import com.example.ui.theme.SpaceBlack
 import com.example.ui.viewmodel.JaxonViewModel
 
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 fun JaxonApp(
     viewModel: JaxonViewModel,
@@ -127,56 +130,68 @@ fun JaxonApp(
             }
         }
     ) { innerPadding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-        ) {
-            NavHost(
-                navController = navController,
-                startDestination = "splash",
-                modifier = Modifier.fillMaxSize(),
-                enterTransition = {
-                    fadeIn(tween(180)) + slideInVertically(tween(180)) { it / 40 }
-                },
-                exitTransition = {
-                    fadeOut(tween(180))
-                },
-                popEnterTransition = {
-                    fadeIn(tween(180)) + slideInVertically(tween(180)) { -it / 40 }
-                },
-                popExitTransition = {
-                    fadeOut(tween(180))
-                }
+        SharedTransitionLayout {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
             ) {
-                composable("splash") {
-                    SplashScreen(navController = navController, viewModel = viewModel)
+                NavHost(
+                    navController = navController,
+                    startDestination = "splash",
+                    modifier = Modifier.fillMaxSize(),
+                    enterTransition = {
+                        fadeIn(tween(180)) + slideInVertically(tween(180)) { it / 40 }
+                    },
+                    exitTransition = {
+                        fadeOut(tween(180))
+                    },
+                    popEnterTransition = {
+                        fadeIn(tween(180)) + slideInVertically(tween(180)) { -it / 40 }
+                    },
+                    popExitTransition = {
+                        fadeOut(tween(180))
+                    }
+                ) {
+                    composable("splash") {
+                        SplashScreen(
+                            navController = navController,
+                            viewModel = viewModel,
+                            sharedTransitionScope = this@SharedTransitionLayout,
+                            animatedVisibilityScope = this@composable
+                        )
+                    }
+                    composable("onboarding") {
+                        OnboardingScreen(navController = navController, viewModel = viewModel)
+                    }
+                    composable("permissions") {
+                        PermissionsScreen(navController = navController, viewModel = viewModel)
+                    }
+                    composable("home") {
+                        HomeScreen(
+                            navController = navController,
+                            viewModel = viewModel,
+                            sharedTransitionScope = this@SharedTransitionLayout,
+                            animatedVisibilityScope = this@composable
+                        )
+                    }
+                    composable("custom_commands") {
+                        CustomCommandsScreen(navController = navController, viewModel = viewModel)
+                    }
+                    composable("history") {
+                        HistoryScreen(navController = navController, viewModel = viewModel)
+                    }
+                    composable("settings") {
+                        SettingsScreen(navController = navController, viewModel = viewModel)
+                    }
                 }
-                composable("onboarding") {
-                    OnboardingScreen(navController = navController, viewModel = viewModel)
-                }
-                composable("permissions") {
-                    PermissionsScreen(navController = navController, viewModel = viewModel)
-                }
-                composable("home") {
-                    HomeScreen(navController = navController, viewModel = viewModel)
-                }
-                composable("custom_commands") {
-                    CustomCommandsScreen(navController = navController, viewModel = viewModel)
-                }
-                composable("history") {
-                    HistoryScreen(navController = navController, viewModel = viewModel)
-                }
-                composable("settings") {
-                    SettingsScreen(navController = navController, viewModel = viewModel)
-                }
-            }
 
-            // Layered Speech Listening Wave Overlay (Slides up over any screen when activated)
-            VoiceAssistantOverlay(
-                viewModel = viewModel,
-                modifier = Modifier.fillMaxSize()
-            )
+                // Layered Speech Listening Wave Overlay (Slides up over any screen when activated)
+                VoiceAssistantOverlay(
+                    viewModel = viewModel,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
         }
     }
 }

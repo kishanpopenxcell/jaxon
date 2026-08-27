@@ -55,10 +55,13 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+@OptIn(androidx.compose.animation.ExperimentalSharedTransitionApi::class)
 @Composable
 fun HomeScreen(
     navController: NavController,
     viewModel: JaxonViewModel,
+    sharedTransitionScope: androidx.compose.animation.SharedTransitionScope? = null,
+    animatedVisibilityScope: androidx.compose.animation.AnimatedVisibilityScope? = null,
     modifier: Modifier = Modifier
 ) {
     val history by viewModel.historyState.collectAsState()
@@ -201,11 +204,22 @@ fun HomeScreen(
                     .height(200.dp),
                 contentAlignment = Alignment.Center
             ) {
+                val sharedFaceModifier = if (sharedTransitionScope != null && animatedVisibilityScope != null) {
+                    with(sharedTransitionScope) {
+                        Modifier.sharedElement(
+                            rememberSharedContentState("jaxon_face"),
+                            animatedVisibilityScope
+                        )
+                    }
+                } else {
+                    Modifier
+                }
+
                 JaxonFace(
                     state = faceState,
                     rmsDb = rmsDb,
                     size = 160.dp,
-                    modifier = Modifier
+                    modifier = sharedFaceModifier
                         .graphicsLayer(scaleX = faceScale, scaleY = faceScale)
                         .pointerInput(Unit) {
                             detectTapGestures(

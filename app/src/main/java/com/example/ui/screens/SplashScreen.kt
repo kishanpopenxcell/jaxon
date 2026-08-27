@@ -1,6 +1,9 @@
 package com.example.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInVertically
@@ -31,10 +34,13 @@ import com.example.ui.theme.SpaceBlack
 import com.example.ui.viewmodel.JaxonViewModel
 import kotlinx.coroutines.delay
 
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 fun SplashScreen(
     navController: NavController,
     viewModel: JaxonViewModel,
+    sharedTransitionScope: SharedTransitionScope? = null,
+    animatedVisibilityScope: AnimatedVisibilityScope? = null,
     modifier: Modifier = Modifier
 ) {
     val onboardingCompleted by viewModel.isOnboardingCompleted.collectAsState()
@@ -71,10 +77,22 @@ fun SplashScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp),
             modifier = Modifier.testTag("splash_content")
         ) {
+            val faceModifier = if (sharedTransitionScope != null && animatedVisibilityScope != null) {
+                with(sharedTransitionScope) {
+                    Modifier.sharedElement(
+                        rememberSharedContentState("jaxon_face"),
+                        animatedVisibilityScope
+                    )
+                }
+            } else {
+                Modifier
+            }
+
             JaxonFace(
                 state = JaxonFaceState.IDLE,
                 size = 160.dp,
-                intro = intro
+                intro = intro,
+                modifier = faceModifier
             )
 
             Spacer(modifier = Modifier.height(8.dp))
